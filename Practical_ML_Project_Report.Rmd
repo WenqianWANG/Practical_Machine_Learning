@@ -1,0 +1,120 @@
+---
+title: "Practical Machine Learning : Course Project"
+author: "Wenqian WANG"
+date: "Saturday, August 22, 2015"
+output: html_document
+---
+
+#Background 
+Quantifying self movement with devices such as Jawbone Up, Nike FuelBand, and Fitbit is becoming more and more popular recently for collecting a large amount of personal activity data regularly and inexpensively. In this project, a qualification question is raised when our 6 participants perform barbell lifts in two different ways. For more information, please consult the [web page](http://groupware.les.inf.puc-rio.br/har) and see the section on the Weight Lifting Exercise Dataset. The data for this project come from this source : http://groupware.les.inf.puc-rio.br/har.
+  
+#Questions
+The goal of this project is to predict the manner in which these 6 participants did the exercise. More detailed demand is to describe :
+
+1. How to build the model ;
+2. How to use cross validation ;
+3. Think about the expected out of sample error ; 
+4. The reason for making the choice.
+
+#Download Training and Testing Data
+```{r}
+#set working directory
+setwd("D:/Coursera/PracticalMachineLearning/Project/")
+#training set
+url_train <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+if(!file.exists("pml-training.csv")){
+  download.file(url=url_train, destfile="pml-training.csv") 
+}
+#testing set
+url_test <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+if(!file.exists("pml-testing.csv")){
+  download.file(url=url_test, destfile="pml-testing.csv")
+}
+```
+
+#Create Training and Testing Set
+The intuition that we get from the result below, is that the dimension of raw data is (19622, 160). The variable to predict, classe, consists of five factors : A ~ E.
+```{r}
+data <- read.csv("pml-training.csv", sep=",", na.strings=c("NA",""), header=TRUE)
+dim(data)
+table(data$classe)
+```
+
+Then we split raw data into training and testing sets with the help of "createDataPartition" function.
+```{r}
+set.seed(322)
+library(caret)
+inTrain <- createDataPartition(y=data$classe, p=0.7, list=FALSE)
+training <- data[inTrain, ]
+testing <- data[-inTrain, ]
+#head(training)
+```
+
+#Look into Missing Values
+With the help of "head" function, we notice that there are many missing values among 160 columns. So we decide to look into missing values by simply counting the number of them in this step.
+```{r}
+dim(training)
+nb_na <- sapply(training, function(x) {sum(is.na(x))})
+table(nb_na)
+```
+
+#Get Rid of Some Less Usefull Variables in Training Set
+From the result in the previous step, we see that among 100 variables(columns), the majority of observations (13458 out of 13737) are missing values. Thus, it is quite advantagous for the prediction to remove these columns and reduce dimension of our training set.
+```{r}
+good <- (nb_na!=13458)
+training <- training[ , good]
+dim(training)
+str(training)
+```
+
+The "str" shows us that the first 7 columns are useless for prediction. 
+```{r}
+training <- training[,-c(1:7)]
+str(training)
+```
+
+#Implement ML algorithms
+Two algorithms which are frequently used in non-linear regression/classification will be implemented in this part : decision tree and random forest. 
+
+##Decision Tree
+A [decision tree](https://en.wikipedia.org/wiki/Decision_tree) is a decision support tool that uses a tree-like graph or model of decisions and their possible consequences.
+```{r}
+library(rpart)
+#y is factor, method="class"
+modFit1 <- rpart(classe~., data=training, method="class")
+pred1 <- predict(modFit1, testing, type="class")
+confusionMatrix(pred1, testing$classe)
+```
+The accuracy of our first prediction is only 0.7252, which may be due to its overfitting.
+
+##Random Forest
+Random forests is another famous algorithm which is well known by its accurary. As cited by wikipedia, "random forest correct for decision trees' habit of overfitting to their training set".
+```{r}
+library(randomForest)
+modFit2 <- randomForest(classe~., data=training)
+prediction2 <- predict(modFit2, testing, type="class")
+confusionMatrix(prediction2, testing$classe)
+```
+In this case, the accurary equals to 0.9966. The expected out of sample error is (1-0.9966).
+
+#Submission
+```{r}
+prediction2 <- predict(modFit2, newdata=validation, type="class")
+prediction2
+# Utility function provided by the instructor
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(prediction2)
+```
+
+#Conclusion
+The course project helps us put what we have learnt into practice.
+
+1. Design Cross Validation : split data into training, testing and validation sets ;
+2. Find the features and build the model ;
+3. ML algorithms : decision tree and random forest.
